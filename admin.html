@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>管理画面 | SIer職種適性診断</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td, th { border-bottom: 1px solid var(--line); padding: 6px; text-align: left; }
+  code { font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header class="bar"><span class="brand">管理画面</span></header>
+<main>
+  <div class="card">
+    <h2 style="margin-top:0">データのダウンロード</h2>
+    <p class="sub">管理キーは GAS のスクリプトプロパティ ADMIN_KEY に設定した値です。この端末にだけ保存されます。</p>
+    <input type="text" id="key" placeholder="管理キー" autocomplete="off">
+    <button class="btn" id="dl">CSVをダウンロード</button>
+    <p class="err" id="msg"></p>
+  </div>
+  <div class="card" id="summary" hidden></div>
+  <div class="card">
+    <h2 style="margin-top:0">配布用URL</h2>
+    <p><b>グループA</b>（1回目15問 → 2回目10問）<br><code id="uA"></code></p>
+    <p><b>グループB</b>（1回目10問 → 2回目15問）<br><code id="uB"></code></p>
+    <p class="sub">協力者を半分ずつA・Bに分け、2回目も<b>1回目と同じURL</b>を送ってください。回答者が「1回目／2回目」を選ぶと設問数が自動で決まります。</p>
+  </div>
+</main>
+<script src="config.js"></script>
+<script>
+(function () {
+  const ENDPOINT = window.APP_CONFIG.ENDPOINT;
+  const base = location.href.replace(/admin\.html.*$/, "index.html");
+  document.getElementById("uA").textContent = base + "?g=A";
+  document.getElementById("uB").textContent = base + "?g=B";
+  const keyIn = document.getElementById("key"), msg = document.getElementById("msg");
+  try { keyIn.value = localStorage.getItem("sier_admin_key") || ""; } catch (e) {}
+  if (!ENDPOINT) { keyIn.hidden = true; msg.textContent = "テストモード：このブラウザで回答したデータを出力します。"; }
+
+  function toCsv(rows) {
+    const cols = [];
+    rows.forEach(r => Object.keys(r).forEach(k => { if (!cols.includes(k)) cols.push(k); }));
+    const q = s => { s = s == null ? "" : String(s); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    return [cols.join(",")].concat(rows.map(r => cols.map(c => q(r[c])).join(","))).join("\r\n");
+  }
+  function parseCsv(text) { // 集計表示用の簡易パーサ
+    const rows = []; let row = [], f = "", inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else inQ = false; } else f += c; }
+      else if (c === '"') inQ = true;
+      else if (c === ",") { row.push(f); f = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+      else f += c;
+    }
+    if (f || row.length) { row.push(f); rows.push(row); }
+    const [head, ...body] = rows;
+    return body.filter(r => r.length > 1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+  }
+  function summarize(rows) {
+    const done = x => String(x.completed) === "1";
+    const line = (g, r) => {
+      const a = rows.filter(x => String(x.group || "A") === g && String(x.round) === r), d = a.filter(done).length;
+      const v = a.length ? a[0].version : "";
+      return `<tr><td>${g}</td><td>${r}回目</td><td>${v ? v + "問" : "-"}</td><td>${a.length}</td><td>${d}</td><td>${a.length - d}</td></tr>`;
+    };
+    // 15問版の完了者について「10問で採点したら1位が同じだったか」
+    const sim = rows.filter(x => done(x) && String(x.version) === "15" && x.sim10_same_top1 !== "" && x.sim10_same_top1 != null);
+    const same = sim.filter(x => String(x.sim10_same_top1) === "1").length;
+    // 1回目と2回目でグループが食い違っている回答者（違うURLで回答した可能性）
+    const gOf = {};
+    rows.filter(x => done(x) && x.respondent_id).forEach(x => { (gOf[x.respondent_id] = gOf[x.respondent_id] || new Set()).add(String(x.group || "A")); });
+    const mismatch = Object.keys(gOf).filter(id => gOf[id].size > 1);
+    // 同じ回の中でコードが重複している（別人が偶然同じコード、または2重回答）
+    const dup = [];
+    ["1", "2"].forEach(r => {
+      const c = {}; rows.filter(x => done(x) && String(x.round) === r).forEach(x => { c[x.respondent_id] = (c[x.respondent_id] || 0) + 1; });
+      Object.keys(c).filter(k => c[k] > 1).forEach(k => dup.push(`${r}回目：${k}（${c[k]}件）`));
+    });
+    const el = document.getElementById("summary");
+    el.hidden = false;
+    el.innerHTML = `<h2 style="margin-top:0">集計（${rows.length}セッション）</h2>
+      <table><tr><th>G</th><th>回</th><th>版</th><th>開始</th><th>完了</th><th>離脱</th></tr>
+      ${["A", "B"].flatMap(g => ["1", "2"].map(r => line(g, r))).join("")}</table>
+      <p class="sub">回数を選ぶ前にやめた人：${rows.filter(x => !done(x) && !x.round).length}件（上の表には含まれません）</p>
+      <p><b>10問で採点しても1位が同じ：</b>${sim.length ? `${same} / ${sim.length}人（${Math.round(100 * same / sim.length)}%）` : "データなし"}</p>
+      ${mismatch.length ? `<p class="err">⚠ 1回目と2回目でグループが違う回答者：${mismatch.join("、")}</p>` : ""}
+      ${dup.length ? `<p class="err">⚠ 同じ回にコードが重複：${dup.join("、")}</p>` : ""}`;
+  }
+  function download(csv) {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+    // 先頭にBOMを付けてExcelで文字化けしないようにする（pandasは encoding="utf-8-sig" で読む）
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `sier_responses_${stamp}.csv`; a.click();
+  }
+
+  document.getElementById("dl").onclick = async () => {
+    msg.textContent = "";
+    if (!ENDPOINT) {
+      let all = {}; try { all = JSON.parse(localStorage.getItem("sier_test_rows") || "{}"); } catch (e) {}
+      const rows = Object.values(all);
+      if (!rows.length) { msg.textContent = "データがありません。"; return; }
+      summarize(rows); download(toCsv(rows)); return;
+    }
+    const key = keyIn.value.trim();
+    try { localStorage.setItem("sier_admin_key", key); } catch (e) {}
+    msg.textContent = "取得中…";
+    try {
+      const res = await fetch(ENDPOINT + "?action=export&key=" + encodeURIComponent(key));
+      const text = await res.text();
+      if (text === "unauthorized") { msg.textContent = "管理キーが違います。"; return; }
+      msg.textContent = "";
+      summarize(parseCsv(text)); download(text);
+    } catch (e) { msg.textContent = "取得に失敗しました：" + e.message; }
+  };
+})();
+</script>
+</body>
+</html>
