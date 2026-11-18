@@ -173,6 +173,29 @@ textarea { min-height: 110px; resize: vertical; }
 .axis .track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: #c3c9d6; }
 .axis .pin { position: absolute; top: 50%; width: 20px; height: 20px; border-radius: 50%; background: var(--grad); border: 3px solid #fff; box-shadow: 0 2px 8px rgba(79,70,229,.4); transform: translate(-50%, -50%); z-index: 1; }
 
+/* 結果画面の職種説明 */
+.result-hero .short { position: relative; margin-top: 12px; font-weight: 800; font-size: 15px; }
+.jobinfo { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.65; text-align: left; position: relative; }
+.ji-row { display: flex; flex-direction: column; gap: 2px; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.ji-label { font-size: 12px; font-weight: 800; color: var(--accent); }
+.jobinfo.on-hero .ji-row { background: rgba(255,255,255,.16); }
+.jobinfo.on-hero .ji-label { color: #fff; opacity: .85; }
+.short-sub { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--sub); }
+
+/* 向いている人のチェックリスト */
+ul.person { list-style: none; margin: 2px 0 0; padding: 0; }
+ul.person li { position: relative; padding-left: 20px; margin: 2px 0; }
+ul.person li::before { content: "✓"; position: absolute; left: 2px; font-weight: 900; color: var(--accent); }
+.jobinfo.on-hero ul.person li::before { color: #fff; }
+
+/* 「一番しっくりくる職種」：選ぶと説明が開く */
+.fit-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.fit-body .sub { font-size: 13px; font-weight: 400; }
+.opt-detail { display: none; flex-direction: column; margin-top: 8px; padding: 10px 12px; background: var(--card); border-radius: 10px; font-size: 13px; font-weight: 400; line-height: 1.65; color: var(--text); }
+.opt.on .opt-detail { display: flex; animation: slideIn .25s ease both; }
+.opt-detail .ji-label { font-size: 12px; }
+.opt:has(.fit-body)::before { align-self: flex-start; margin-top: 4px; }
+
 /* 結果と質問の区切り */
 .divider { display: flex; align-items: center; gap: 10px; margin: 32px 0 6px; color: var(--accent); font-weight: 800; font-size: 15px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 2px; background: var(--accent-weak); }

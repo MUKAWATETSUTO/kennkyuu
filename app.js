@@ -110,6 +110,7 @@
             <div class="body">
               <p>${t.about || j.desc}</p>
               ${t.example ? `<div class="ex"><b>たとえば…</b>${t.example}</div>` : ""}
+              ${t.person ? `<div class="ex"><b>こんな人に向いている</b><ul class="person">${t.person.map(p => `<li>${p}</li>`).join("")}</ul></div>` : ""}
             </div>
           </details>`;
         }).join("")}
@@ -342,24 +343,38 @@
     progress(null);
     if (!readOnly) resultShownAt = Date.now();
     const top = result.ranked.slice(0, 3);
+    const intro = j => (window.JOB_INTRO || {})[j.id] || { short: "", about: j.desc, example: "" };
+    // 職種の「どんな仕事？」「たとえば…」ブロック（はじめて見る人向け）
+    const jobInfo = (j, cls) => {
+      const t = intro(j);
+      return `<div class="jobinfo ${cls || ""}">
+        <div class="ji-row"><span class="ji-label">どんな仕事？</span><span>${t.about}</span></div>
+        ${t.example ? `<div class="ji-row"><span class="ji-label">たとえば…</span><span>${t.example}</span></div>` : ""}
+        ${personHtml(t)}
+      </div>`;
+    };
     h(`
       <div class="result-hero">
         <div class="label">あなたに最も合う職種</div>
         <div class="hero-icon">${top[0].job.icon}</div>
         <div class="job">${top[0].job.name}</div>
         <div class="match">相性 ${top[0].match}%</div>
-        <div class="desc">${top[0].job.desc}</div>
+        ${intro(top[0].job).short ? `<div class="short">${intro(top[0].job).short}</div>` : ""}
+        ${jobInfo(top[0].job, "on-hero")}
       </div>
       <h2>2位・3位の職種</h2>
       ${top.slice(1).map((r, k) => `
-        <div class="card rank">
-          <div class="ic">${r.job.icon}</div>
-          <div style="flex:1">
-            <div class="no">${k + 2}位</div>
-            <div class="name">${r.job.name} <span class="pct">${r.match}%</span></div>
-            <div class="meter"><i style="width:${r.match}%"></i></div>
-            <div class="sub" style="margin-top:6px">${r.job.desc}</div>
+        <div class="card">
+          <div class="rank">
+            <div class="ic">${r.job.icon}</div>
+            <div style="flex:1">
+              <div class="no">${k + 2}位</div>
+              <div class="name">${r.job.name} <span class="pct">${r.match}%</span></div>
+              <div class="meter"><i style="width:${r.match}%"></i></div>
+              ${intro(r.job).short ? `<div class="short-sub">${intro(r.job).short}</div>` : ""}
+            </div>
           </div>
+          ${jobInfo(r.job)}
         </div>`).join("")}
       <h2>あなたの5つの傾向</h2>
       <div class="card">
@@ -376,6 +391,27 @@
   }
 
   // ---------- 6. 納得度・しっくり職種・自由記述（結果の下に続けて表示） ----------
+  // 「こんな人に向いている」のブロック
+  function personHtml(t) {
+    if (!t.person || !t.person.length) return "";
+    return `<div class="ji-row"><span class="ji-label">こんな人に向いている</span>
+      <ul class="person">${t.person.map(p => `<li>${p}</li>`).join("")}</ul></div>`;
+  }
+
+  // 「一番しっくりくる職種」の選択肢。タップして選ぶと、その職種の説明が開く
+  function fitLabel(r, k) {
+    const t = (window.JOB_INTRO || {})[r.job.id] || { about: r.job.desc };
+    return `<span class="fit-body">
+      <span>${r.job.icon} ${k + 1}位：${r.job.name}</span>
+      ${t.short ? `<span class="sub">${t.short}</span>` : ""}
+      <span class="opt-detail">
+        <span class="ji-label">どんな仕事？</span><span>${t.about}</span>
+        ${t.example ? `<span class="ji-label" style="margin-top:6px">たとえば…</span><span>${t.example}</span>` : ""}
+        ${t.person ? `<span class="ji-label" style="margin-top:6px">こんな人に向いている</span>${t.person.map(p => `<span>✓ ${p}</span>`).join("")}` : ""}
+      </span>
+    </span>`;
+  }
+
   function feedbackHtml(top) {
     const lik = (key, q) => `
       <div class="field"><div class="q">${q}</div>
@@ -392,7 +428,7 @@
       ${lik("sat_useful", "職種選びの参考になる")}
       <div class="field"><div class="q">1〜3位のうち、一番しっくりくる職種はどれですか？</div>
         <div class="opts">
-          ${top.map((r, k) => `<button class="opt" data-fit="${r.job.id}" data-rank="${k + 1}" data-match="${r.match}">${r.job.icon} ${k + 1}位：${r.job.name}</button>`).join("")}
+          ${top.map((r, k) => `<button class="opt" data-fit="${r.job.id}" data-rank="${k + 1}" data-match="${r.match}">${fitLabel(r, k)}</button>`).join("")}
           <button class="opt" data-fit="none" data-rank="0" data-match="">どれもしっくりこない</button>
         </div>
       </div>
