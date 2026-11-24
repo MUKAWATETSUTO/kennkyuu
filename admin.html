@@ -25,9 +25,8 @@
   <div class="card" id="summary" hidden></div>
   <div class="card">
     <h2 style="margin-top:0">配布用URL</h2>
-    <p><b>グループA</b>（1回目15問 → 2回目10問）<br><code id="uA"></code></p>
-    <p><b>グループB</b>（1回目10問 → 2回目15問）<br><code id="uB"></code></p>
-    <p class="sub">協力者を半分ずつA・Bに分け、2回目も<b>1回目と同じURL</b>を送ってください。回答者が「1回目／2回目」を選ぶと設問数が自動で決まります。</p>
+    <div id="urls"></div>
+    <p class="sub">協力者を6グループに均等に分け、2回目も<b>1回目と同じURL</b>を送ってください。回答者が「1回目／2回目」を選ぶと設問の形式が自動で決まります。</p>
   </div>
 </main>
 <script src="config.js"></script>
@@ -35,8 +34,10 @@
 (function () {
   const ENDPOINT = window.APP_CONFIG.ENDPOINT;
   const base = location.href.replace(/admin\.html.*$/, "index.html");
-  document.getElementById("uA").textContent = base + "?g=A";
-  document.getElementById("uB").textContent = base + "?g=B";
+  const MODES = window.APP_CONFIG.MODE_BY_GROUP;
+  const ML = { fixed15: "固定15問", fixed10: "固定10問", adaptive: "変動式" };
+  document.getElementById("urls").innerHTML = Object.keys(MODES).map(g =>
+    `<p><b>グループ${g}</b>（1回目 ${ML[MODES[g][1]]} → 2回目 ${ML[MODES[g][2]]}）<br><code>${base}?g=${g}</code></p>`).join("");
   const keyIn = document.getElementById("key"), msg = document.getElementById("msg");
   try { keyIn.value = localStorage.getItem("sier_admin_key") || ""; } catch (e) {}
   if (!ENDPOINT) { keyIn.hidden = true; msg.textContent = "テストモード：このブラウザで回答したデータを出力します。"; }
@@ -63,13 +64,19 @@
   }
   function summarize(rows) {
     const done = x => String(x.completed) === "1";
+    const mean = a => a.length ? (a.reduce((p, q) => p + q, 0) / a.length).toFixed(2) : "-";
     const line = (g, r) => {
       const a = rows.filter(x => String(x.group || "A") === g && String(x.round) === r), d = a.filter(done).length;
-      const v = a.length ? a[0].version : "";
-      return `<tr><td>${g}</td><td>${r}回目</td><td>${v ? v + "問" : "-"}</td><td>${a.length}</td><td>${d}</td><td>${a.length - d}</td></tr>`;
+      return `<tr><td>${g}</td><td>${r}回目</td><td>${ML[MODES[g] && MODES[g][r]] || "-"}</td><td>${a.length}</td><td>${d}</td><td>${a.length - d}</td></tr>`;
     };
-    // 15問版の完了者について「10問で採点したら1位が同じだったか」
-    const sim = rows.filter(x => done(x) && String(x.version) === "15" && x.sim10_same_top1 !== "" && x.sim10_same_top1 != null);
+    // 形式ごと（固定15問／固定10問／変動式）の完了者の平均
+    const byMode = m => rows.filter(x => done(x) && x.q_mode === m);
+    const modeRow = m => {
+      const a = byMode(m), n = k => a.filter(x => x[k] !== "" && x[k] != null).map(x => Number(x[k])).filter(v => !isNaN(v));
+      return `<tr><td>${ML[m]}</td><td>${a.length}</td><td>${mean(n("version"))}</td><td>${mean(n("questions_sec"))}</td><td>${mean(n("sat_overall"))}</td><td>${mean(n("max_streak"))}</td></tr>`;
+    };
+    // 10問より多く答えた完了者について「最初の10問で採点しても1位が同じだったか」
+    const sim = rows.filter(x => done(x) && Number(x.version) > 10 && x.sim10_same_top1 !== "" && x.sim10_same_top1 != null);
     const same = sim.filter(x => String(x.sim10_same_top1) === "1").length;
     // 1回目と2回目でグループが食い違っている回答者（違うURLで回答した可能性）
     const gOf = {};
@@ -84,8 +91,12 @@
     const el = document.getElementById("summary");
     el.hidden = false;
     el.innerHTML = `<h2 style="margin-top:0">集計（${rows.length}セッション）</h2>
-      <table><tr><th>G</th><th>回</th><th>版</th><th>開始</th><th>完了</th><th>離脱</th></tr>
-      ${["A", "B"].flatMap(g => ["1", "2"].map(r => line(g, r))).join("")}</table>
+      <table><tr><th>G</th><th>回</th><th>形式</th><th>開始</th><th>完了</th><th>離脱</th></tr>
+      ${Object.keys(MODES).flatMap(g => ["1", "2"].map(r => line(g, r))).join("")}</table>
+      <h2>形式ごとの平均（完了者）</h2>
+      <table><tr><th>形式</th><th>人数</th><th>設問数</th><th>設問の秒数</th><th>納得度</th><th>同じ選択の連続</th></tr>
+      ${["fixed15", "fixed10", "adaptive"].map(modeRow).join("")}</table>
+      <p class="sub">人数が少ないうちは参考程度に。</p>
       <p class="sub">回数を選ぶ前にやめた人：${rows.filter(x => !done(x) && !x.round).length}件（上の表には含まれません）</p>
       <p><b>10問で採点しても1位が同じ：</b>${sim.length ? `${same} / ${sim.length}人（${Math.round(100 * same / sim.length)}%）` : "データなし"}</p>
       ${mismatch.length ? `<p class="err">⚠ 1回目と2回目でグループが違う回答者：${mismatch.join("、")}</p>` : ""}

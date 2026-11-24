@@ -182,6 +182,22 @@ textarea { min-height: 110px; resize: vertical; }
 .jobinfo.on-hero .ji-label { color: #fff; opacity: .85; }
 .short-sub { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--sub); }
 
+/* あなたの性格 */
+.persona { border-top: 4px solid var(--accent); }
+.persona-type { text-align: center; font-size: 14px; color: var(--sub); line-height: 1.5; }
+.persona-type b { display: inline-block; margin-top: 4px; font-size: 20px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.persona-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 12px 0 4px; }
+.persona-keys span { background: var(--accent-weak); color: var(--accent); font-size: 13px; font-weight: 800; padding: 3px 10px; border-radius: 99px; }
+.persona-text { font-size: 15px; line-height: 1.9; margin: 12px 0 0; }
+
+/* 5つの傾向：軸ごとの「あなたはどういう人か」 */
+.card .axis + .axis { border-top: 1px solid var(--line); padding-top: 16px; }
+.axis-about { font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+.axis-you { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.7; }
+.axis-label { align-self: flex-start; font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 99px; background: #e9ebf1; color: var(--sub); }
+.axis-label.l { background: var(--accent-weak); color: var(--accent); }
+.axis-label.r { background: #dff7fb; color: #0e7490; }
+
 /* 向いている人のチェックリスト */
 ul.person { list-style: none; margin: 2px 0 0; padding: 0; }
 ul.person li { position: relative; padding-left: 20px; margin: 2px 0; }
@@ -195,6 +211,9 @@ ul.person li::before { content: "✓"; position: absolute; left: 2px; font-weigh
 .opt.on .opt-detail { display: flex; animation: slideIn .25s ease both; }
 .opt-detail .ji-label { font-size: 12px; }
 .opt:has(.fit-body)::before { align-self: flex-start; margin-top: 4px; }
+
+/* 結果の説明 1/2・2/2 の表示 */
+.stage-badge { align-self: center; margin: 0 auto 10px; background: var(--card); color: var(--accent); font-weight: 800; font-size: 13px; padding: 4px 14px; border-radius: 99px; box-shadow: var(--shadow); }
 
 /* 結果と質問の区切り */
 .divider { display: flex; align-items: center; gap: 10px; margin: 32px 0 6px; color: var(--accent); font-weight: 800; font-size: 15px; }
