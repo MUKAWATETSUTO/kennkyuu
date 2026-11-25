@@ -30,7 +30,8 @@
     QS = [];
     if (ADAPTIVE()) QS = [qById("A1")];
     else for (let n = 1; n <= perAxis; n++) AXES.forEach(a => QS.push(qById(a.key + n)));
-    rec.version = QS.length;
+    // 設問数：変動式は1問ずつ決めるので、途中でやめた人も形式が分かるよう最大の問題数を入れておく（完了時に実際の数で上書き）
+    rec.version = ADAPTIVE() ? ((CFG.ADAPTIVE || {}).MAX || 15) : QS.length;
   }
   const qById = id => window.QUESTIONS.find(q => q.id === id);
   // 軸ごとのストック（A1〜A6 のように番号順）
@@ -141,6 +142,8 @@
   const t0 = Date.now();
 
   function send(useBeacon) {
+    // 途中でやめた人を記録しない設定なら、送信（完了）するまで何も保存しない
+    if (!rec.completed && !CFG.RECORD_DROPOUTS) return;
     rec.updated_at = now();
     const body = JSON.stringify(rec);
     if (TEST_MODE) {
