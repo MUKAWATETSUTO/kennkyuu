@@ -67,6 +67,9 @@
   const bankOf = key => window.QUESTIONS.filter(q => q.axis === key).sort((x, y) => Number(x.id.slice(1)) - Number(y.id.slice(1)));
   // 答え（1〜5）を軸の向きにそろえた値（-2〜+2）に直す
   const itemVal = q => (answers[q.id] - 3) * (q.rev ? -1 : 1);
+  // スキップは 0 として記録する（1〜5 の答えとは別扱い）。採点では使わない
+  const SKIP = 0;
+  const answered = q => answers[q.id] != null && answers[q.id] !== SKIP;
 
   // 変動式の問題数の表示（MIN と MAX が同じなら「15」、違えば「10〜15」）
   const adaptiveLabel = () => {
@@ -103,7 +106,9 @@
     AXES.forEach((a, k) => {
       const rest = bankOf(a.key).filter(q => answers[q.id] == null && !QS.includes(q));
       if (!rest.length) return;
-      const vals = asked.filter(q => q.axis === a.key).map(itemVal);
+      // スキップした問題は使わない。答えがまだ1つもない軸は「真ん中・まだわからない」として扱う
+      const got = asked.filter(q => q.axis === a.key && answered(q)).map(itemVal);
+      const vals = got.length ? got : [0];
       const mean = vals.reduce((x, y) => x + y, 0) / vals.length;
       const discriminate = Math.abs(p1[k] - p2[k]);                    // 1位と2位を見分けるのに効く軸ほど大きい（0〜2.4）
       const unclear = 1 - Math.min(Math.abs(mean), 1.5) / 1.5;         // 真ん中寄りほど大きい（0〜1）
@@ -144,7 +149,8 @@
   ALL_IDS.forEach(id => { rec["q_" + id] = ""; });
   ALL_IDS.forEach(id => { rec["t_" + id] = ""; });
   Object.assign(rec, {
-    questions_sec: "", n_changes: 0, n_back: 0, max_streak: "", same_ratio: "",
+    questions_sec: "", n_changes: 0, n_back: 0, n_skip: "", max_streak: "", same_ratio: "",
+    result_class: "", // judged＝判定できた / other＝全部スキップで判定できず「その他」
   });
   AXES.forEach(a => { rec["score_" + a.key] = ""; });
   Object.assign(rec, {
@@ -373,17 +379,19 @@
       <div class="scale">${[1, 2, 3, 4, 5].map(v => `<button class="dot s${v}${answers[q.id] === v ? " on" : ""}" data-v="${v}" aria-label="${["Aに近い", "ややAに近い", "どちらとも言えない", "ややBに近い", "Bに近い"][v - 1]}"></button>`).join("")}</div>
       <div class="scale-labels"><span class="l">← Aに近い</span><span>どちらとも</span><span class="r">Bに近い →</span></div>
       <p class="hint">丸をタップすると次の質問に進みます</p>
+      <button class="btn link skip${answers[q.id] === SKIP ? " on" : ""}" data-v="${SKIP}" id="skip">この質問はスキップする</button>
       <div class="grow"></div>
       <div class="actions">${i > 0 ? `<button class="btn link" id="back">← 前の質問に戻る</button>` : ""}</div>
     `);
     const leave = () => { timeMs[q.id] = (timeMs[q.id] || 0) + (Date.now() - shownAt); };
-    $app.querySelectorAll(".dot").forEach(b => b.onclick = () => {
+    // 丸（1〜5）とスキップ（0）は同じ流れで次へ進む
+    $app.querySelectorAll(".dot, #skip").forEach(b => b.onclick = () => {
       const v = Number(b.dataset.v);
       const prev = answers[q.id];
-      if (prev && prev !== v) rec.n_changes++;
+      if (prev != null && prev !== v) rec.n_changes++;
       answers[q.id] = v;
-      $app.querySelectorAll(".dot").forEach(x => x.classList.toggle("on", x === b));
-      $app.querySelectorAll(".dot").forEach(x => { x.disabled = true; });
+      $app.querySelectorAll(".dot, #skip").forEach(x => x.classList.toggle("on", x === b));
+      $app.querySelectorAll(".dot, #skip").forEach(x => { x.disabled = true; });
       leave();
       rec["q_" + q.id] = v; rec["t_" + q.id] = +(timeMs[q.id] / 1000).toFixed(2);
       setTimeout(() => {
@@ -409,11 +417,13 @@
   function score(qs) {
     const s = {};
     AXES.forEach(a => {
-      const items = qs.filter(q => q.axis === a.key);
-      // 回答 1〜5 → -2〜+2（下の文=B寄りが+）。逆転項目は符号を反転
-      const vals = items.map(q => (answers[q.id] - 3) * (q.rev ? -1 : 1));
-      s[a.key] = vals.reduce((x, y) => x + y, 0) / vals.length;
+      // スキップした問題は除く。回答 1〜5 → -2〜+2（下の文=B寄りが+）。逆転項目は符号を反転
+      const vals = qs.filter(q => q.axis === a.key && answered(q)).map(itemVal);
+      // その軸を全部スキップしたときは「どちらでもない（0）」として扱う
+      s[a.key] = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : 0;
     });
+    // 全部の問題をスキップした → 判定の基準に達しない（結果は「その他」）
+    const undetermined = !qs.some(answered);
     const u = AXES.map(a => s[a.key]);
     // 相性% = 100 × exp(−d² / (2σ²))。d は5軸スコアと職種プロファイルの距離。
     // 近い職種ほど急に高くなるので、1位と2位の差がはっきり出る（順位は距離の近い順のまま）
@@ -422,7 +432,7 @@
       const d2 = j.p.reduce((acc, p, k) => acc + (u[k] - p) ** 2, 0);
       return { job: j, d2, match: Math.round(100 * Math.exp(-d2 / (2 * sigma * sigma))) };
     }).sort((a, b) => a.d2 - b.d2);
-    return { axis: s, ranked };
+    return { axis: s, ranked, undetermined };
   }
 
   let result = null, resultShownAt = 0;
@@ -436,11 +446,21 @@
     rec.max_streak = max; rec.same_ratio = +(Math.max(...Object.values(freq)) / seq.length).toFixed(3);
 
     result = score(QS);
+    rec.n_skip = QS.filter(q => answers[q.id] === SKIP).length;
+    rec.version = QS.length; // 実際に出した設問数（スキップも含む）
+    if (result.undetermined) {
+      // 全部スキップ：判定の基準に達しなかったため「その他」に分類する。スコア・職種は記録しない
+      rec.result_class = "other";
+      rec.top1_job = "other";
+      step("result");
+      viewResult();
+      return;
+    }
+    rec.result_class = "judged";
     AXES.forEach(a => { rec["score_" + a.key] = +result.axis[a.key].toFixed(3); });
     result.ranked.slice(0, 3).forEach((r, k) => { rec[`top${k + 1}_job`] = r.job.id; rec[`top${k + 1}_match`] = r.match; });
     recordPersona();
 
-    rec.version = QS.length; // 実際に答えた設問数
     // 10問より多く答えた人（固定15問・3問目を追加した変動式）は、同じ回答を最初の10問（各軸1・2問目）だけで
     // 採点し直した結果も残す。同じ人・同じ時点のデータで「設問を減らすと結果がどれだけ変わるか」を比べられる
     if (QS.length > 10) {
@@ -489,10 +509,41 @@
     document.getElementById("go").onclick = () => viewResult();
   }
 
+  // ---------- 5'. 全部スキップしたとき：判定の基準に達しなかったため「その他」に分類 ----------
+  function viewUndetermined(readOnly) {
+    h(`
+      <div class="result-hero">
+        <div class="label">診断結果</div>
+        <div class="hero-icon">❔</div>
+        <div class="job">その他</div>
+        <div class="desc" style="text-align:center">すべての質問がスキップされたため、判定の基準に達しませんでした。<br>結果は「その他」に分類されます。</div>
+      </div>
+      <div class="card">
+        <p style="margin-top:0">もう一度診断したいときは、画面を閉じてから、はじめからやり直してください。</p>
+        <p class="sub" style="margin-bottom:0">職種の説明は、最初の画面で職種名をタップすると読めます。</p>
+      </div>
+      ${readOnly ? `<div class="actions"><button class="btn" id="close">閉じる</button></div>` : `
+      <div class="field"><div class="q">スキップした理由があれば教えてください（任意）</div>
+        <textarea id="free" placeholder="例：どちらにも当てはまらない質問が多かった"></textarea>
+      </div>
+      <div class="actions"><button class="btn" id="go">送信する</button></div>`}
+    `);
+    if (readOnly) { document.getElementById("close").onclick = viewDone; return; }
+    document.getElementById("go").onclick = () => {
+      rec.free_text = document.getElementById("free").value.trim();
+      rec.free_text_len = rec.free_text.length;
+      rec.result_view_sec = +((Date.now() - resultShownAt) / 1000).toFixed(1);
+      rec.completed = 1; rec.completed_at = now(); rec.total_sec = +((Date.now() - t0) / 1000).toFixed(1);
+      step("done", "completed");
+      viewDone();
+    };
+  }
+
   // ---------- 5. 結果 ----------
   function viewResult(readOnly) {
     progress(null);
     if (!readOnly) resultShownAt = Date.now();
+    if (result.undetermined) return viewUndetermined(readOnly);
     const top = result.ranked.slice(0, 3);
     const intro = j => (window.JOB_INTRO || {})[j.id] || { short: "", about: j.desc, example: "" };
     // 職種の「どんな仕事？」「たとえば…」ブロック（はじめて見る人向け）

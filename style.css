@@ -219,6 +219,10 @@ ul.person li::before { content: "✓"; position: absolute; left: 2px; font-weigh
 .fit-other { margin-left: 18px; padding-left: 10px; border-left: 3px solid var(--accent-weak); }
 .fit-other[hidden] { display: none; }
 
+/* 設問の「スキップ」ボタン（選んだときは色を付ける） */
+.btn.link.skip { margin-top: 4px; text-decoration: underline; }
+.btn.link.skip.on { color: var(--accent); font-weight: 800; }
+
 /* 結果と質問の区切り */
 .divider { display: flex; align-items: center; gap: 10px; margin: 32px 0 6px; color: var(--accent); font-weight: 800; font-size: 15px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 2px; background: var(--accent-weak); }
