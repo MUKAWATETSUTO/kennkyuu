@@ -215,6 +215,10 @@ ul.person li::before { content: "✓"; position: absolute; left: 2px; font-weigh
 /* 結果の説明 1/2・2/2 の表示 */
 .stage-badge { align-self: center; margin: 0 auto 10px; background: var(--card); color: var(--accent); font-weight: 800; font-size: 13px; padding: 4px 14px; border-radius: 99px; box-shadow: var(--shadow); }
 
+/* 「その他の職種」を開いたときの一覧（少し右にずらして、その他の中身だと分かるようにする） */
+.fit-other { margin-left: 18px; padding-left: 10px; border-left: 3px solid var(--accent-weak); }
+.fit-other[hidden] { display: none; }
+
 /* 結果と質問の区切り */
 .divider { display: flex; align-items: center; gap: 10px; margin: 32px 0 6px; color: var(--accent); font-weight: 800; font-size: 15px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 2px; background: var(--accent-weak); }

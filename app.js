@@ -204,8 +204,8 @@
       <div class="hero">
         <div class="hero-icon">🧭</div>
         <h1>あなたに向いている<br>SIerの職種がわかる</h1>
-        <p>かんたんな質問に答えるだけで、8つの職種から相性のよい職種を診断します。</p>
-        <div class="chips"><span class="chip">⏱ 約3〜5分</span><span class="chip">🔒 匿名</span><span class="chip">💼 8職種</span></div>
+        <p>かんたんな質問に答えるだけで、${JOBS.length}つの職種から相性のよい職種を診断します。</p>
+        <div class="chips"><span class="chip">⏱ 約3〜5分</span><span class="chip">🔒 匿名</span><span class="chip">💼 ${JOBS.length}職種</span></div>
       </div>
       <h2>SIerにはこんな職種があります</h2>
       <p class="sub" style="margin-top:0">タップすると説明が開きます。</p>
@@ -626,9 +626,14 @@
       ${lik("sat_accurate", "自分の性格を言い当てている")}
       ${lik("sat_insight", "新しい気づきがあった")}
       ${lik("sat_useful", "職種選びの参考になる")}
-      <div class="field"><div class="q">1〜3位のうち、一番しっくりくる職種はどれですか？</div>
+      <div class="field"><div class="q">一番しっくりくる職種はどれですか？</div>
+        <p class="sub" style="margin-top:0">1〜3位にないときは「その他の職種」から選んでください。</p>
         <div class="opts">
           ${top.map((r, k) => `<button class="opt" data-fit="${r.job.id}" data-rank="${k + 1}" data-match="${r.match}">${fitLabel(r, k)}</button>`).join("")}
+          <button class="opt" id="fitOtherBtn" data-fitother="1">その他の職種（4位以下から選ぶ）</button>
+          <div class="opts fit-other" id="fitOther" hidden>
+            ${result.ranked.slice(3).map((r, k) => `<button class="opt" data-fit="${r.job.id}" data-rank="${k + 4}" data-match="${r.match}">${fitLabel(r, k + 3)}</button>`).join("")}
+          </div>
           <button class="opt" data-fit="none" data-rank="0" data-match="">どれもしっくりこない</button>
         </div>
       </div>
@@ -677,13 +682,27 @@
       $app.querySelectorAll(`.likert button[data-k="${b.dataset.k}"]`).forEach(x => x.classList.remove("on"));
       b.classList.add("on"); v[b.dataset.k] = Number(b.dataset.v); validate();
     });
+    const otherBtn = document.getElementById("fitOtherBtn"), otherBox = document.getElementById("fitOther");
     $app.querySelectorAll("[data-fit]").forEach(b => b.onclick = () => {
       touched();
       $app.querySelectorAll("[data-fit]").forEach(x => x.classList.remove("on"));
       b.classList.add("on");
+      // 「その他の職種」の中から選んだときは「その他」も選択中の見た目にする。それ以外を選んだら一覧を閉じる
+      const inOther = otherBox && otherBox.contains(b);
+      if (otherBtn) otherBtn.classList.toggle("on", inOther);
+      if (otherBox && !inOther) otherBox.hidden = true;
       v.fit_job = b.dataset.fit; v.fit_rank = Number(b.dataset.rank); v.fit_match = b.dataset.match === "" ? "" : Number(b.dataset.match);
       validate();
     });
+    // 「その他の職種」：4位以下の5職種を開く（職種を選ぶまでは未回答のまま）
+    if (otherBtn) otherBtn.onclick = () => {
+      touched();
+      $app.querySelectorAll("[data-fit]").forEach(x => x.classList.remove("on"));
+      otherBtn.classList.add("on");
+      otherBox.hidden = false;
+      delete v.fit_job; delete v.fit_rank; delete v.fit_match;
+      validate();
+    };
     go.onclick = () => {
       Object.entries(v).forEach(([k, val]) => { if (k !== "pref") rec[col(k)] = val; });
       rec[col("free_text")] = document.getElementById("free").value.trim();
