@@ -37,7 +37,7 @@
   const ML = { fixed15: "固定15問", fixed10: "固定10問", adaptive: "変動式" };
   document.getElementById("urls").innerHTML =
     `<p><b>全員に同じURLを送ってください</b>（1回目も2回目も同じ）<br><code>${base}</code></p>
-     <p class="sub">グループ（A〜F）は、回答者コードを入力した時点で自動で決まります。1回目はいちばん人数の少ないグループ、2回目は1回目と同じグループになります。割り当ての記録はスプレッドシートの「割り当て」シートにあります。</p>
+     <p class="sub">グループ（C〜F）は、回答者コードを入力した時点で自動で決まります。全員が変動式を1回、固定式（15問か10問）を1回答えます。1回目はいちばん人数の少ないグループ、2回目は1回目と同じグループになります。割り当ての記録はスプレッドシートの「割り当て」シートにあります。</p>
      <details><summary class="sub">自分で形式を試すとき（グループを固定するURL）</summary>` +
     Object.keys(MODES).map(g => `<p class="sub">グループ${g}（1回目 ${ML[MODES[g][1]]} → 2回目 ${ML[MODES[g][2]]}）<br><code>${base}?g=${g}</code></p>`).join("") +
     `</details>`;
