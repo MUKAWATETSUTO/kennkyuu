@@ -7,9 +7,12 @@
 
   // ---------- 設問の形式（固定15問／固定10問／変動式）：グループと回数で決まる ----------
   // 表示順は A1,B1,C1,D1,E1,A2,... と軸を交互にする（10問版は15問版の先頭10問と同じ）
-  // グループ：配布URLの ?g=A〜F で決める（指定なしは DEFAULT_GROUP）。組み合わせは config.js の MODE_BY_GROUP
+  // グループ（A〜F）：回答者コードを入力した時点で自動で決める（assignGroup）。組み合わせは config.js の MODE_BY_GROUP
+  //   1回目：スプレッドシート側で、いちばん人数の少ないグループに割り当てる
+  //   2回目：同じ回答者コードの1回目と同じグループにする（メモ不要）
+  //   URLに ?g=A〜F を付けたときだけは、そのグループに固定する（自分で試すとき用）
   const gParam = (new URLSearchParams(location.search).get("g") || "").toUpperCase();
-  const GROUP = CFG.MODE_BY_GROUP[gParam] ? gParam : CFG.DEFAULT_GROUP;
+  const URL_GROUP = CFG.MODE_BY_GROUP[gParam] ? gParam : "";
   // 結果の説明文の方式と順番（?t=）：
   //   FV → 固定式の結果に答えたあと、同じ回答のまま変動式の結果を見せてもう一度答える
   //   VF → その逆の順番 ／ F・V → どちらか1つだけ ／ 指定なし → DEFAULT_RESULT_ORDER
@@ -21,9 +24,35 @@
   const isFixed = () => ORDER[stage] === "fixed";
   let QS = [], MODE = "";
   const ADAPTIVE = () => MODE === "adaptive";
-  function setRound(round) {
-    rec.round = round;
-    MODE = CFG.MODE_BY_GROUP[GROUP][round];
+  // グループを決める。戻り値はグループ名。rec.group_source に決め方を残す
+  //   url＝URLで指定 / server＝スプレッドシートで割り当て（new＝新規, found＝1回目と同じ, notfound＝2回目なのに1回目が見つからず新規）
+  //   hash＝通信できなかったので回答者コードから計算（同じコードなら必ず同じグループになる）
+  async function assignGroup() {
+    if (URL_GROUP) { rec.group_source = "url"; return URL_GROUP; }
+    const groups = Object.keys(CFG.MODE_BY_GROUP);
+    const byHash = () => {
+      let h = 0; for (const ch of rec.respondent_id) h = (h * 31 + ch.codePointAt(0)) % 100003;
+      return groups[h % groups.length];
+    };
+    if (!TEST_MODE) {
+      try {
+        const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 10000);
+        const url = `${CFG.ENDPOINT}?action=assign&code=${encodeURIComponent(rec.respondent_id)}&round=${rec.round}&groups=${groups.join("")}`;
+        const res = await fetch(url, { signal: ctl.signal }); clearTimeout(timer);
+        const j = JSON.parse(await res.text());
+        if (j && CFG.MODE_BY_GROUP[j.group]) { rec.group_source = "server_" + j.how; return j.group; }
+      } catch (e) { /* 通信できないときは下の計算で決める */ }
+    }
+    rec.group_source = "hash";
+    return byHash();
+  }
+
+  function setRound(round) { rec.round = round; }
+  // グループと回数から設問の形式を決めて、最初の問題を用意する
+  function setMode(group) {
+    const round = rec.round;
+    rec.group = group;
+    MODE = CFG.MODE_BY_GROUP[group][round];
     rec.q_mode = MODE;
     // 固定15問は各軸3問、固定10問は各軸2問。変動式は最初の1問（A1）から始め、1問ずつ次を決める（10問目までは固定10問と同じ）
     const perAxis = MODE === "fixed15" ? 3 : 2;
@@ -104,7 +133,7 @@
   const now = () => new Date().toISOString();
   const rec = {
     session_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
-    respondent_id: "", group: GROUP, round: "", q_mode: "", version: "", adaptive_extra: "", adaptive_axes: "", adaptive_path: "",
+    respondent_id: "", group: "", group_source: "", round: "", q_mode: "", version: "", adaptive_extra: "", adaptive_axes: "", adaptive_path: "",
     result_order: ORDER_CODE, result_type: ORDER[0],
     status: "started", last_step: "consent", completed: 0,
     started_at: now(), consent_at: "", completed_at: "", total_sec: "",
@@ -275,7 +304,8 @@
     pick("sib", "sib"); pick("m", "m");
     go.onclick = () => {
       rec.respondent_id = document.getElementById("codeOut").textContent;
-      step("attributes"); viewAttributes();
+      go.disabled = true; go.textContent = "準備しています…";
+      assignGroup().then(g => { setMode(g); step("attributes"); viewAttributes(); });
     };
   }
 

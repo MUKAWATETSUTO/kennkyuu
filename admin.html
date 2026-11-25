@@ -26,7 +26,6 @@
   <div class="card">
     <h2 style="margin-top:0">配布用URL</h2>
     <div id="urls"></div>
-    <p class="sub">協力者を6グループに均等に分け、2回目も<b>1回目と同じURL</b>を送ってください。回答者が「1回目／2回目」を選ぶと設問の形式が自動で決まります。</p>
   </div>
 </main>
 <script src="config.js"></script>
@@ -36,8 +35,12 @@
   const base = location.href.replace(/admin\.html.*$/, "index.html");
   const MODES = window.APP_CONFIG.MODE_BY_GROUP;
   const ML = { fixed15: "固定15問", fixed10: "固定10問", adaptive: "変動式" };
-  document.getElementById("urls").innerHTML = Object.keys(MODES).map(g =>
-    `<p><b>グループ${g}</b>（1回目 ${ML[MODES[g][1]]} → 2回目 ${ML[MODES[g][2]]}）<br><code>${base}?g=${g}</code></p>`).join("");
+  document.getElementById("urls").innerHTML =
+    `<p><b>全員に同じURLを送ってください</b>（1回目も2回目も同じ）<br><code>${base}</code></p>
+     <p class="sub">グループ（A〜F）は、回答者コードを入力した時点で自動で決まります。1回目はいちばん人数の少ないグループ、2回目は1回目と同じグループになります。割り当ての記録はスプレッドシートの「割り当て」シートにあります。</p>
+     <details><summary class="sub">自分で形式を試すとき（グループを固定するURL）</summary>` +
+    Object.keys(MODES).map(g => `<p class="sub">グループ${g}（1回目 ${ML[MODES[g][1]]} → 2回目 ${ML[MODES[g][2]]}）<br><code>${base}?g=${g}</code></p>`).join("") +
+    `</details>`;
   const keyIn = document.getElementById("key"), msg = document.getElementById("msg");
   try { keyIn.value = localStorage.getItem("sier_admin_key") || ""; } catch (e) {}
   if (!ENDPOINT) { keyIn.hidden = true; msg.textContent = "テストモード：このブラウザで回答したデータを出力します。"; }
